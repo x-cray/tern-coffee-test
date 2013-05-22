@@ -1,0 +1,18 @@
+body, html
+{
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    background-color: #333333;
+}
+
+#editor, #viewer
+{
+    width: 100%;
+    height: 50%;
+}
+
+#editor
+{
+    margin-bottom: 5px;
+}

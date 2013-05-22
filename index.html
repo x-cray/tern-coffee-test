@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Tern CoffeeScript test</title>
+    <link rel="stylesheet" href="main.css"/>
+</head>
+<body>
+
+<div id="editor">sum = (a, b) -> a + b
+</div>
+
+<div id="viewer"></div>
+
+<script src="./lib/ace/ace.js" type="text/javascript" charset="utf-8"></script>
+<script src="./lib/cs/coffee-script.js" type="text/javascript" charset="utf-8"></script>
+<script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>
+<script>
+    var editor = ace.edit("editor");
+    var viewer = ace.edit("viewer");
+
+    function recompileCoffee(e) {
+        var source = editor.getValue();
+        var result = null;
+
+        try {
+            var compilationResult = CoffeeScript.compileWithReverseMap(source);
+            result = compilationResult.js;
+            console.log(compilationResult);
+        }
+        catch (e) {
+            result = "Compilation failed: " + e;
+        }
+
+        viewer.setValue(result);
+    }
+
+    editor.setTheme("ace/theme/monokai");
+    editor.getSession().setMode("ace/mode/coffee");
+    editor.getSession().on("change", recompileCoffee);
+    viewer.setTheme("ace/theme/monokai");
+    viewer.getSession().setMode("ace/mode/javascript");
+</script>
+</body>
+</html>
