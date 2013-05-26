@@ -6,8 +6,7 @@
 </head>
 <body>
 
-<div id="editor">sum = (a, b) -> a + b
-</div>
+<div id="editor">a = 1</div>
 
 <div id="viewer"></div>
 
@@ -15,8 +14,31 @@
 <script src="./lib/cs/coffee-script.js" type="text/javascript" charset="utf-8"></script>
 <script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>
 <script>
+    var Selection = ace.require("./selection").Selection;
+    var Range = ace.require("./range").Range;
     var editor = ace.edit("editor");
     var viewer = ace.edit("viewer");
+    var viewerSelection = viewer.getSelection();
+    var reverseMap = null;
+
+    function updateCurrentToken(e) {
+        var cursorPosition = editor.getCursorPosition();
+        var reverseRow = reverseMap[cursorPosition.row];
+
+        if (reverseRow) {
+            var reversePos = reverseRow[cursorPosition.column];
+            if (reversePos) {
+                viewerSelection.setSelectionRange(
+                    new Range(
+                        reversePos.y,
+                        reversePos.x - 1,
+                        reversePos.y,
+                        reversePos.x + reversePos.l - 1
+                    )
+                );
+            }
+        }
+    }
 
     function recompileCoffee(e) {
         var source = editor.getValue();
@@ -24,21 +46,24 @@
 
         try {
             var compilationResult = CoffeeScript.compileWithReverseMap(source);
-            result = compilationResult.js;
-            console.log(compilationResult);
+            result = compilationResult.js
+            reverseMap = compilationResult.reverseMap;
         }
-        catch (e) {
-            result = "Compilation failed: " + e;
+        catch (ex) {
+            result = "Compilation failed: " + ex;
         }
 
-        viewer.setValue(result);
+        viewer.setValue(result, 0);
+        viewerSelection.clearSelection();
     }
 
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/coffee");
     editor.getSession().on("change", recompileCoffee);
+    editor.on("changeSelection", updateCurrentToken);
     viewer.setTheme("ace/theme/monokai");
     viewer.getSession().setMode("ace/mode/javascript");
+    recompileCoffee(null);
 </script>
 </body>
 </html>
