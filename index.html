@@ -6,7 +6,12 @@
 </head>
 <body>
 
-<div id="editor">a = 1</div>
+<div id="editor">a = 1
+
+hhhhhh.call 123
+
+jjj = 679
+</div>
 
 <div id="viewer"></div>
 
@@ -14,30 +19,58 @@
 <script src="./lib/cs/coffee-script.js" type="text/javascript" charset="utf-8"></script>
 <script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>
 <script>
-    var Selection = ace.require("./selection").Selection;
     var Range = ace.require("./range").Range;
     var editor = ace.edit("editor");
+    var editorSession = editor.getSession();
     var viewer = ace.edit("viewer");
-    var viewerSelection = viewer.getSelection();
-    var reverseMap = null;
+    var deferredCall = ace.require("ace/lib/lang").deferredCall;
+    var viewerSession = viewer.getSession();
+    var sourceMap = null;
+    var markerId = null;
 
-    function updateCurrentToken(e) {
-        var cursorPosition = editor.getCursorPosition();
-        var reverseRow = reverseMap[cursorPosition.row];
+    function getSourceLineMapping(line, column) {
+        if (!sourceMap) {
+            return null;
+        }
 
-        if (reverseRow) {
-            var reversePos = reverseRow[cursorPosition.column];
-            if (reversePos) {
-                viewerSelection.setSelectionRange(
-                    new Range(
-                        reversePos.y,
-                        reversePos.x - 1,
-                        reversePos.y,
-                        reversePos.x + reversePos.l - 1
-                    )
-                );
+        for (var i in sourceMap.generatedLines) {
+            for (var j in sourceMap.generatedLines[i].columnMap) {
+                var columnMap = sourceMap.generatedLines[i].columnMap[j];
+                if (columnMap.sourceLine === line && columnMap.sourceColumn === column) {
+                    return columnMap;
+                }
             }
         }
+
+        return null;
+    }
+
+    function updateCurrentToken(e) {
+        viewerSession.removeMarker(markerId);
+        var cursorPosition = editor.getCursorPosition();
+        var mapping = getSourceLineMapping(cursorPosition.row, cursorPosition.column);
+
+        if (mapping) {
+//            console.log(mapping);
+            viewer.moveCursorTo(mapping.generatedLine, mapping.generatedColumn);
+//            markerId = viewerSession.addMarker(
+//                new Range(
+//                    mapping.generatedLine,
+//                    mapping.generatedColumn,
+//                    mapping.generatedLine,
+//                    mapping.generatedColumn + 1
+//                ),
+//                "highlight",
+//                "source-marker",
+//                true
+//            );
+        }
+    }
+
+    var deferredupdateCurrentToken = deferredCall(updateCurrentToken);
+
+    function onChangeCursor(e) {
+        deferredupdateCurrentToken.schedule(200);
     }
 
     function recompileCoffee(e) {
@@ -45,24 +78,35 @@
         var result = null;
 
         try {
-            var compilationResult = CoffeeScript.compileWithReverseMap(source);
+            var opts = {
+                sourceMap: true,
+                rewrite: true
+            }
+            var compilationResult = CoffeeScript.compile(source, opts);
             result = compilationResult.js
-            reverseMap = compilationResult.reverseMap;
+            sourceMap = compilationResult.sourceMap;
         }
         catch (ex) {
             result = "Compilation failed: " + ex;
         }
 
-        viewer.setValue(result, 0);
-        viewerSelection.clearSelection();
+        result += "\n";
+        for (var i in sourceMap.generatedLines) {
+            for (var j in sourceMap.generatedLines[i].columnMap) {
+                var columnMap = sourceMap.generatedLines[i].columnMap[j];
+                result += "// " + columnMap.generatedLine + ", " + columnMap.generatedColumn + " -> " + columnMap.sourceColumn + ", " + columnMap.sourceLine + "\n";
+            }
+        }
+
+        viewerSession.setValue(result, 0);
     }
 
     editor.setTheme("ace/theme/monokai");
-    editor.getSession().setMode("ace/mode/coffee");
-    editor.getSession().on("change", recompileCoffee);
-    editor.on("changeSelection", updateCurrentToken);
+    editor.on("changeSelection", onChangeCursor);
+    editorSession.setMode("ace/mode/coffee");
+    editorSession.on("change", recompileCoffee);
     viewer.setTheme("ace/theme/monokai");
-    viewer.getSession().setMode("ace/mode/javascript");
+    viewerSession.setMode("ace/mode/javascript");
     recompileCoffee(null);
 </script>
 </body>
