@@ -6,32 +6,32 @@
 </head>
 <body>
 
-<div id="editor">a = 1
+<div id="source">a = 1
 
 hhhhhh.call 123
 
 jjj = 679
 </div>
 
-<div id="viewer"></div>
+<div id="generated"></div>
 
 <script src="./lib/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 <script src="./lib/cs/coffee-script.js" type="text/javascript" charset="utf-8"></script>
-<script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>
-<script>
+<!--<script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>-->
+<script type="text/javascript">
+    var source = ace.edit("source");
+    var sourceSession = source.getSession();
+    var generated = ace.edit("generated");
+    var generatedSession = generated.getSession();
     var Range = ace.require("./range").Range;
-    var editor = ace.edit("editor");
-    var editorSession = editor.getSession();
-    var viewer = ace.edit("viewer");
     var deferredCall = ace.require("ace/lib/lang").deferredCall;
-    var viewerSession = viewer.getSession();
     var sourceMap = null;
-    var markerId = null;
+    var sourceMarkerId = null;
+    var generatedMarkerId = null;
 
-    function getSourceLineMapping(line, column) {
-        if (!sourceMap) {
+    function getGeneratedPosition(line, column) {
+        if (!sourceMap)
             return null;
-        }
 
         for (var i in sourceMap.generatedLines) {
             for (var j in sourceMap.generatedLines[i].columnMap) {
@@ -45,36 +45,76 @@ jjj = 679
         return null;
     }
 
-    function updateCurrentToken(e) {
-        viewerSession.removeMarker(markerId);
-        var cursorPosition = editor.getCursorPosition();
-        var mapping = getSourceLineMapping(cursorPosition.row, cursorPosition.column);
+    function updateCurrentGeneratedToken(e) {
+        generatedSession.removeMarker(generatedMarkerId);
+        var cursorPosition = source.getCursorPosition();
+        var mapping = getGeneratedPosition(cursorPosition.row, cursorPosition.column);
+        console.log(mapping);
 
-        if (mapping) {
-//            console.log(mapping);
-            viewer.moveCursorTo(mapping.generatedLine, mapping.generatedColumn);
-//            markerId = viewerSession.addMarker(
-//                new Range(
-//                    mapping.generatedLine,
-//                    mapping.generatedColumn,
-//                    mapping.generatedLine,
-//                    mapping.generatedColumn + 1
-//                ),
-//                "highlight",
-//                "source-marker",
-//                true
-//            );
-        }
+        if (!mapping)
+            return;
+
+        var token = generatedSession.getTokenAt(mapping.generatedLine, mapping.generatedColumn + 1);
+        console.log(token);
+        if (!token)
+            return;
+
+        var range = new Range(
+            mapping.generatedLine,
+            token.start,
+            mapping.generatedLine,
+            token.start + token.value.length
+        );
+        console.log(range);
+
+        generatedMarkerId = generatedSession.addMarker(range, "ace_bracket highlight", "text");
     }
 
-    var deferredupdateCurrentToken = deferredCall(updateCurrentToken);
+    function getSourcePosition(line, column) {
+        if (!sourceMap)
+            return null;
 
-    function onChangeCursor(e) {
-        deferredupdateCurrentToken.schedule(200);
+        return sourceMap.getSourcePosition([line, column]);
     }
 
-    function recompileCoffee(e) {
-        var source = editor.getValue();
+    function updateCurrentSourceToken(e) {
+        sourceSession.removeMarker(sourceMarkerId);
+        var cursorPosition = generated.getCursorPosition();
+        var mapping = getSourcePosition(cursorPosition.row, cursorPosition.column);
+//        console.log(mapping);
+
+        if (!mapping)
+            return;
+
+        var token = sourceSession.getTokenAt(mapping[0], mapping[1]);
+//        console.log(token);
+        if (!token)
+            return;
+
+        var range = new Range(
+            mapping[0],
+            token.start,
+            mapping[0],
+            token.start + token.value.length
+        );
+//        console.log(range);
+
+        sourceMarkerId = sourceSession.addMarker(range, "ace_bracket highlight", "text");
+    }
+
+    var deferredUpdateCurrentSourceToken = deferredCall(updateCurrentSourceToken);
+    var deferredUpdateCurrentGeneratedToken = deferredCall(updateCurrentGeneratedToken);
+
+    function onSourceChangeCursor(e) {
+        deferredUpdateCurrentGeneratedToken.schedule(100);
+    }
+
+    function onGeneratedChangeCursor(e) {
+        deferredUpdateCurrentSourceToken.schedule(100);
+    }
+
+    function recompileCoffeeScript(e) {
+        var coffeeScript = source.getValue();
         var result = null;
 
         try {
@@ -82,7 +122,7 @@ jjj = 679
                 sourceMap: true,
                 rewrite: true
             }
-            var compilationResult = CoffeeScript.compile(source, opts);
+            var compilationResult = CoffeeScript.compile(coffeeScript, opts);
             result = compilationResult.js
             sourceMap = compilationResult.sourceMap;
         }
@@ -98,16 +138,17 @@ jjj = 679
             }
         }
 
-        viewerSession.setValue(result, 0);
+        generatedSession.setValue(result, 0);
     }
 
-    editor.setTheme("ace/theme/monokai");
-    editor.on("changeSelection", onChangeCursor);
-    editorSession.setMode("ace/mode/coffee");
-    editorSession.on("change", recompileCoffee);
-    viewer.setTheme("ace/theme/monokai");
-    viewerSession.setMode("ace/mode/javascript");
-    recompileCoffee(null);
+    source.setTheme("ace/theme/monokai");
+    source.on("changeSelection", onSourceChangeCursor);
+    sourceSession.setMode("ace/mode/coffee");
+    sourceSession.on("change", recompileCoffeeScript);
+    generated.setTheme("ace/theme/monokai");
+    generated.on("changeSelection", onGeneratedChangeCursor);
+    generatedSession.setMode("ace/mode/javascript");
+    recompileCoffeeScript(null);
 </script>
 </body>
 </html>

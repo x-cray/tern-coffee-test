@@ -5,18 +5,18 @@ body, html
     margin: 0;
 }
 
-#editor, #viewer
+#source, #generated
 {
     width: 100%;
     height: 50%;
 }
 
-#editor
+#source
 {
     border-bottom: 2px solid #333333;
 }
 
 .highlight
 {
-    border: 1px solid orangered;
+    background: darkslategrey;
 }
