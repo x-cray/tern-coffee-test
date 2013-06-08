@@ -17,32 +17,25 @@ jjj = 679
 
 <script src="./lib/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 <script src="./lib/cs/coffee-script.js" type="text/javascript" charset="utf-8"></script>
+<script src="./lib/source-map.js" type="text/javascript" charset="utf-8"></script>
 <!--<script src="./lib/cs/coffee-reverse.js" type="text/javascript" charset="utf-8"></script>-->
 <script type="text/javascript">
+    var sourceMapParser = window.sourceMap;
+    var consumer = null;
     var source = ace.edit("source");
     var sourceSession = source.getSession();
     var generated = ace.edit("generated");
     var generatedSession = generated.getSession();
     var Range = ace.require("./range").Range;
     var deferredCall = ace.require("ace/lib/lang").deferredCall;
-    var sourceMap = null;
     var sourceMarkerId = null;
     var generatedMarkerId = null;
 
     function getGeneratedPosition(line, column) {
-        if (!sourceMap)
+        if (!consumer)
             return null;
 
-        for (var i in sourceMap.generatedLines) {
-            for (var j in sourceMap.generatedLines[i].columnMap) {
-                var columnMap = sourceMap.generatedLines[i].columnMap[j];
-                if (columnMap.sourceLine === line && columnMap.sourceColumn === column) {
-                    return columnMap;
-                }
-            }
-        }
-
-        return null;
+        return consumer.generatedPositionFor({ source: "", line: line + 1, column: column + 1 });
     }
 
     function updateCurrentGeneratedToken(e) {
@@ -54,15 +47,15 @@ jjj = 679
         if (!mapping)
             return;
 
-        var token = generatedSession.getTokenAt(mapping.generatedLine, mapping.generatedColumn + 1);
+        var token = generatedSession.getTokenAt(mapping.line - 1, mapping.column - 1);
         console.log(token);
         if (!token)
             return;
 
         var range = new Range(
-            mapping.generatedLine,
+            mapping.line - 1,
             token.start,
-            mapping.generatedLine,
+            mapping.line - 1,
             token.start + token.value.length
         );
         console.log(range);
@@ -71,10 +64,10 @@ jjj = 679
     }
 
     function getSourcePosition(line, column) {
-        if (!sourceMap)
+        if (!consumer)
             return null;
 
-        return sourceMap.getSourcePosition([line, column]);
+        return consumer.originalPositionFor({ line: line + 1, column: column + 1 });
     }
 
     function updateCurrentSourceToken(e) {
@@ -86,15 +79,15 @@ jjj = 679
         if (!mapping)
             return;
 
-        var token = sourceSession.getTokenAt(mapping[0], mapping[1]);
+        var token = sourceSession.getTokenAt(mapping.line - 1, mapping.column - 1);
 //        console.log(token);
         if (!token)
             return;
 
         var range = new Range(
-            mapping[0],
+            mapping.line - 1,
             token.start,
-            mapping[0],
+            mapping.line - 1,
             token.start + token.value.length
         );
 //        console.log(range);
@@ -124,18 +117,10 @@ jjj = 679
             }
             var compilationResult = CoffeeScript.compile(coffeeScript, opts);
             result = compilationResult.js
-            sourceMap = compilationResult.sourceMap;
+            consumer = new sourceMapParser.SourceMapConsumer(compilationResult.v3SourceMap);
         }
         catch (ex) {
             result = "Compilation failed: " + ex;
-        }
-
-        result += "\n";
-        for (var i in sourceMap.generatedLines) {
-            for (var j in sourceMap.generatedLines[i].columnMap) {
-                var columnMap = sourceMap.generatedLines[i].columnMap[j];
-                result += "// " + columnMap.generatedLine + ", " + columnMap.generatedColumn + " -> " + columnMap.sourceColumn + ", " + columnMap.sourceLine + "\n";
-            }
         }
 
         generatedSession.setValue(result, 0);
